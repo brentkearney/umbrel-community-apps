@@ -2,10 +2,9 @@ manifestVersion: 1
 id: brentkearney-graphiti
 name: Graphiti
 tagline: Temporal knowledge graph with MCP for AI agents
-icon: https://raw.githubusercontent.com/getzep/graphiti/main/images/graphiti-logo.svg
 category: ai
 version: "1.0.2"
-port: 8000
+port: 7474
 description: >-
   Graphiti builds temporally-aware knowledge graphs for AI agents.
   It enables real-time incremental updates without batch recomputation,
@@ -20,21 +19,22 @@ description: >-
     - Neo4j graph + vector storage (no separate vector DB needed)
     - Multi-user isolation via group_id
     - Supports OpenAI, Anthropic, Gemini, Groq, and OpenRouter
+
+
+  After installing, edit the graphiti.env file via SSH to set your
+  LLM API key and provider URL.
 developer: Zep AI
 website: https://github.com/getzep/graphiti
 submitter: Brent
 submission: ""
 repo: https://github.com/getzep/graphiti
 support: https://github.com/getzep/graphiti/issues
-gallery:
-  - 1.jpg
-  - 2.jpg
-  - 3.jpg
+gallery: []
 defaultUsername: ""
 defaultPassword: ""
 dependencies: []
 releaseNotes: >-
   Initial release of Graphiti for Umbrel. MCP server v1.0.2 with graphiti-core 0.28.2.
-path: ""
+path: "/browser/"
 torOnly: false
 deterministicPassword: true
