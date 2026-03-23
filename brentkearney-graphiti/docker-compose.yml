@@ -14,6 +14,10 @@ services:
       - "7687:7687"
     environment:
       - NEO4J_AUTH=neo4j/${APP_PASSWORD}
+      - NEO4J_PLUGINS=["apoc"]
+      - NEO4J_apoc_export_file_enabled=true
+      - NEO4J_apoc_import_file_enabled=true
+      - NEO4J_apoc_import_file_use__neo4j__config=true
       - NEO4J_server_memory_heap_initial__size=512m
       - NEO4J_server_memory_heap_max__size=512m
       - NEO4J_server_memory_pagecache_size=512m
