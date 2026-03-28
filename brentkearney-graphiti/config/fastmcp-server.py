@@ -3,6 +3,7 @@
 from __future__ import annotations as _annotations
 
 import inspect
+import os
 import re
 from collections.abc import (
     AsyncIterator,
@@ -73,6 +74,24 @@ from mcp.types import ResourceTemplate as MCPResourceTemplate
 from mcp.types import Tool as MCPTool
 
 logger = get_logger(__name__)
+
+
+class BearerTokenMiddleware:
+    """Simple ASGI middleware that checks for a Bearer token matching MCP_API_KEY env var."""
+
+    def __init__(self, app: Any, api_key: str):
+        self.app = app
+        self.api_key = api_key
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope['type'] == 'http':
+            headers = dict(scope.get('headers', []))
+            auth = headers.get(b'authorization', b'').decode()
+            if not auth.startswith('Bearer ') or auth[7:] != self.api_key:
+                response = Response('Unauthorized', status_code=401)
+                await response(scope, receive, send)
+                return
+        await self.app(scope, receive, send)
 
 
 class Settings(BaseSettings, Generic[LifespanResultT]):
@@ -1037,12 +1056,20 @@ class FastMCP(Generic[LifespanResultT]):
 
         routes.extend(self._custom_starlette_routes)
 
-        return Starlette(
+        app = Starlette(
             debug=self.settings.debug,
             routes=routes,
             middleware=middleware,
             lifespan=lambda app: self.session_manager.run(),
         )
+
+        # Add Bearer token auth if MCP_API_KEY env var is set
+        mcp_api_key = os.environ.get('MCP_API_KEY')
+        if mcp_api_key:
+            app = BearerTokenMiddleware(app, mcp_api_key)
+            logger.info('Bearer token authentication enabled for MCP endpoint')
+
+        return app
 
     async def list_prompts(self) -> list[MCPPrompt]:
         """List all available prompts."""
