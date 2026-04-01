@@ -32,7 +32,7 @@ services:
       start_period: 90s
 
   graphiti-mcp:
-    image: zepai/knowledge-graph-mcp:standalone@sha256:460bafb39439d99ff001ea6ef03efbe0bd5d9e6afe2655edf926da4fd9df97c5
+    image: ghcr.io/brentkearney/graphiti-mcp:feat-bearer-auth@sha256:fcbce6705d4ab52780891a7e85aaffacf0de3d3542745ceb9db6a925a232b5d7
     restart: on-failure
     ports:
       - "8000:8000"
@@ -49,5 +49,4 @@ services:
     volumes:
       - ${APP_DATA_DIR}/config/config.yaml:/app/mcp/config/config.yaml:ro
       - ${APP_DATA_DIR}/config/graphiti.env:/app/mcp/config/graphiti.env
-      - ${APP_DATA_DIR}/config/fastmcp-server.py:/app/mcp/.venv/lib/python3.11/site-packages/mcp/server/fastmcp/server.py:ro
     command: ["uv", "run", "--no-sync", "main.py", "--database-provider", "neo4j"]
