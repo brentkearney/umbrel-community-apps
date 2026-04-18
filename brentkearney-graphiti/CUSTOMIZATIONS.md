@@ -1,42 +1,36 @@
 # Graphiti Umbrel App — Customizations
 
-This document tracks modifications made to the upstream Graphiti Docker image
-(`zepai/knowledge-graph-mcp:standalone`) for the Umbrel deployment.
+This Umbrel app runs a custom-built Graphiti MCP server image:
 
-## Patched Files
+**Image:** `ghcr.io/brentkearney/graphiti-mcp:feat-bearer-auth`
 
-Patches are applied via Docker volume mounts in `docker-compose.yml`,
-overriding files inside the upstream container image.
+Built from the `feat/mcp-bearer-auth` branch of
+[brentkearney/graphiti](https://github.com/brentkearney/graphiti), which is a
+fork of [getzep/graphiti](https://github.com/getzep/graphiti) with the
+following additions on top of upstream `main`:
 
-### 1. `config/fastmcp-server.py`
+1. **Bearer token authentication** (`BearerTokenMiddleware` in
+   `graphiti_mcp_server.py`) — optional, opt-in via `MCP_API_KEY`.
+2. **DNS rebinding fix** — FastMCP's default rebinding protection rejects
+   non-localhost `Host` headers; `MCP_HOSTNAME` re-enables protection while
+   permitting the Umbrel hostname.
+3. **README docs** for the two env vars above.
 
-**Mounted to:** `/app/mcp/.venv/lib/python3.11/site-packages/mcp/server/fastmcp/server.py`
+The image is built from the local graphiti-core sources (not PyPI) so it
+ships in-tree graphiti_core improvements that have not yet been released to
+PyPI.
 
-**Based on:** FastMCP `server.py` from MCP SDK v1.26.0 (bundled in the upstream image)
+## Config files (mounted by docker-compose.yml)
 
-**Changes:**
+### `config/config.yaml`
+Mounted to `/app/mcp/config/config.yaml`. Graphiti MCP server configuration:
+HTTP transport, Neo4j backend connection, OpenAI-compatible LLM/embedding
+provider URLs. Uses env var expansion for secrets.
 
-- **Bearer token authentication** — Added `BearerTokenMiddleware`, a minimal ASGI
-  middleware that checks the `Authorization: Bearer <token>` header against the
-  `MCP_API_KEY` environment variable. Activated in `streamable_http_app()` when
-  `MCP_API_KEY` is set; no-op when unset (open access, the default). Returns 401
-  Unauthorized if the token is missing or incorrect.
-
-### 2. `config/config.yaml`
-
-**Mounted to:** `/app/mcp/config/config.yaml`
-
-Graphiti MCP server configuration specifying HTTP transport, Neo4j backend
-connection settings, and OpenAI-compatible LLM/embedding provider URLs.
-Uses environment variable expansion for secrets (`NEO4J_PASSWORD`, etc.).
-
-### 3. `config/graphiti.env`
-
-**Mounted to:** `/app/mcp/config/graphiti.env`
-
-User-editable environment file for LLM provider settings and optional MCP
-authentication. Loaded as `env_file` by Docker Compose and also mounted as a
-volume so the settings web UI can read and update it at runtime.
+### `config/graphiti.env`
+Mounted to `/app/mcp/config/graphiti.env` and loaded via `env_file`.
+User-editable file for LLM provider settings and optional MCP auth. The
+settings web UI (planned) will read and update it at runtime.
 
 ## Environment Variables
 
@@ -47,6 +41,7 @@ volume so the settings web UI can read and update it at runtime.
 | `NEO4J_USER` | `neo4j` | Neo4j username for MCP server |
 | `NEO4J_PASSWORD` | `${APP_PASSWORD}` | Neo4j password for MCP server |
 | `MCP_API_KEY` | `graphiti.env` (optional) | Bearer token for MCP endpoint auth |
+| `MCP_HOSTNAME` | `graphiti.env` (optional) | Hostname for DNS rebinding allowlist |
 | `OPENAI_API_KEY` | `graphiti.env` | LLM provider API key |
 | `OPENAI_API_URL` | `graphiti.env` | LLM provider base URL |
 | `OPENAI_BASE_URL` | `graphiti.env` | OpenAI SDK base URL |
@@ -58,16 +53,15 @@ volume so the settings web UI can read and update it at runtime.
 
 Two layers of authentication, both opt-in by default:
 
-1. **Neo4j (port 7687)** — Built-in password auth via `NEO4J_AUTH`. Prevents
+1. **Neo4j (port 7687)** — built-in password auth via `NEO4J_AUTH`. Prevents
    direct database access from anything other than the MCP server.
+2. **MCP Server (port 8000)** — optional Bearer token auth via
+   `BearerTokenMiddleware`. When `MCP_API_KEY` is set in `graphiti.env`,
+   clients must send `Authorization: Bearer <token>` with every request.
+   When unset, the MCP endpoint is open (no auth required).
 
-2. **MCP Server (port 8000)** — Optional Bearer token auth via
-   `BearerTokenMiddleware`. When `MCP_API_KEY` is set in `graphiti.env`, clients
-   must send `Authorization: Bearer <token>` with every request. When unset, the
-   MCP endpoint is open (no auth required).
-
-The MCP API key is intended to be configured through the app's settings web UI,
-which reads and writes `graphiti.env`.
+The MCP API key is intended to be configured through the app's settings web
+UI (planned), which reads and writes `graphiti.env`.
 
 ### Connecting Claude Code
 
@@ -84,21 +78,11 @@ claude mcp add graphiti http://umbrel.local:8000/mcp \
   -H "Authorization: Bearer <MCP_API_KEY>"
 ```
 
-## Settings Web UI (Planned)
+## Upgrading the image
 
-The app's landing page will provide a settings interface for:
-- MCP API key (generate, display, regenerate)
-- Neo4j credentials (username, password)
-- LLM provider (API key, base URL, model)
-- Embedding provider (API key, base URL, model)
-- Neo4j Browser link
-- MCP connection URL (with auth header example)
-
-All settings are backed by `graphiti.env`.
-
-## Upstream Tracking
-
-When upgrading the upstream Docker image (`zepai/knowledge-graph-mcp:standalone`),
-the patched `fastmcp-server.py` must be rebased onto the new version of
-`mcp/server/fastmcp/server.py` bundled in the image. Check for changes to
-`streamable_http_app()` in particular.
+1. In the graphiti fork: `git rebase origin/main` the `feat/mcp-bearer-auth` branch.
+2. Run the bearer-auth tests: `uv run pytest tests/test_bearer_auth.py` (from `mcp_server/`).
+3. Build + push the multi-arch image: `./mcp_server/docker/build-local.sh`.
+4. Capture the new manifest digest: `docker buildx imagetools inspect ghcr.io/brentkearney/graphiti-mcp:feat-bearer-auth`.
+5. Update the `@sha256:...` digest in `docker-compose.yml` in this directory.
+6. Commit here, then redeploy on Umbrel (UI update, or `docker compose pull && docker compose up -d`).

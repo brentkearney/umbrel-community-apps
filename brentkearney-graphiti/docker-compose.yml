@@ -32,7 +32,7 @@ services:
       start_period: 90s
 
   graphiti-mcp:
-    image: ghcr.io/brentkearney/graphiti-mcp:feat-bearer-auth@sha256:63899fe76ea8a0093060e98b9381b8d420e4e60503527ab2d234e6f6e93c18ab
+    image: ghcr.io/brentkearney/graphiti-mcp:feat-bearer-auth@sha256:70fe5fca64ee1ac1037f83729f9fc2064b4da016e79c94b35034feb397632aa9
     restart: on-failure
     ports:
       - "8000:8000"
